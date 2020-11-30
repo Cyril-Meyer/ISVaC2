@@ -62,44 +62,57 @@ for filename in tqdm(files_list):
 image_list = np.concatenate(image_list)
 
 # Get dataset
-# np.save("dataset", image_list[:, 0:450, 1350:2250, :])
+np.save("dataset.npy", image_list[:, 0:1200, 200:600, :]/255.0)
 
 gradients = np.zeros(image_list.shape)
 
 # Detect anomaly and create mask
-print("Compute gradient (Laplacian)")
+'''
+print("Compute RGB gradient (Laplacian)")
 for frame in trange(image_list.shape[0]):
     gradients[frame] = np.abs(cv2.Laplacian(image_list[frame], cv2.CV_64F))
+'''
+'''
+print("Compute RGB gradient (Scharr)")
+for frame in trange(image_list.shape[0]):
+    gradients[frame] = (cv2.Scharr(image_list[frame], cv2.CV_64F, 1, 0))
+    gradients[frame] += (cv2.Scharr(image_list[frame], cv2.CV_64F, 0, 1))
+'''
+print("Compute gradient (Laplacian)")
+gradients = np.zeros((24, 1920, 2560))
+for frame in trange(image_list.shape[0]):
+    gradients[frame] = np.abs(cv2.Laplacian(cv2.cvtColor(image_list[frame], cv2.COLOR_BGR2GRAY), cv2.CV_64F))
 
-# TODO : Got better result before meaning in the end, check required
+gradients = (gradients - gradients.min()) / gradients.max()
 
-gradients = gradients / gradients.max()
+if gradients.ndim == 4:
+    gradients = np.sum(gradients, axis=-1)/3
+
+'''
+gradient = np.std(gradients, axis=0)
+mask = (gradient > 0.015)*1.0
+'''
 gradient = np.mean(gradients, axis=0)
-gradient_1D = np.sum(gradient, axis=-1)/3
-mask = (gradient_1D > 0.005)*1.0
+mask = (gradient > 0.010)*1.0
 
-open_selem = np.array([[0, 0, 1, 0, 0],
-                       [0, 1, 1, 1, 0],
-                       [1, 1, 1, 1, 1],
-                       [0, 1, 1, 1, 0],
-                       [0, 0, 1, 0, 0]], dtype=np.uint8)
 
-mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, open_selem)
+selem_3 = np.array([[0, 1,  0],
+                    [1, 1,  1],
+                    [0, 1,  0]], dtype=np.uint8)
 
-plt.imshow((gradient > np.quantile(gradient, 0.99)).astype(np.float32))
+selem_5 = np.array([[0, 0, 1, 0, 0],
+                    [0, 1, 1, 1, 0],
+                    [1, 1, 1, 1, 1],
+                    [0, 1, 1, 1, 0],
+                    [0, 0, 1, 0, 0]], dtype=np.uint8)
+
+mask = cv2.erode(mask, selem_3)
+mask = cv2.dilate(mask, selem_3)
+mask = cv2.dilate(mask, selem_5)
+mask = cv2.dilate(mask, selem_5)
+mask = cv2.dilate(mask, selem_5)
+mask = cv2.erode(mask, selem_5)
+
+
+plt.imshow(mask, cmap='gray')
 plt.show()
-
-plt.imshow(mask)
-plt.show()
-
-'''
-plt.imshow(gradient)
-plt.show()
-
-plt.imshow(gradient_1D, cmap='gray')
-plt.show()
-
-print((gradient > np.quantile(gradient, 0.99)).astype(np.float32).shape)
-plt.imshow((gradient > np.quantile(gradient, 0.99)).astype(np.float32))
-plt.show()
-'''
