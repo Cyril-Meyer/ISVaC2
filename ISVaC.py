@@ -5,18 +5,16 @@ C. Meyer
 '''
 
 import os
-
 import numpy as np
 import cv2
 import tensorflow as tf
-
+import segmentation_models as sm
 from tqdm import tqdm, trange
-
 import matplotlib.pyplot as plt
-
 from video import avi_to_np
 
 
+os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 image_list = []
 files_list = []
 file_names_list = []
@@ -48,8 +46,8 @@ for filename in tqdm(files_list):
 image_list = np.concatenate(image_list)
 
 # Save training and validation data.
-# np.save("train_images.npy", image_list[:, 0:1200, 200:600, :]/255.0)
-# np.save("valid_images.npy", image_list[:, 0:300, 1900:2200, :]/255.0)
+np.save("train_images.npy", image_list[:, 0:1200, 200:600, :]/255.0)
+np.save("valid_images.npy", image_list[:, 0:300, 1900:2200, :]/255.0)
 
 # Create mask -------------------------------------------------------------------------------------------------------- #
 # Compute gradients for each image
@@ -97,9 +95,9 @@ mask = cv2.dilate(mask, selem_5)
 mask = cv2.erode(mask, selem_5)
 
 # Reconstruction ----------------------------------------------------------------------------------------------------- #
-model = tf.keras.models.load_model("model")
+model = tf.keras.models.load_model("model_MeanSquaredError")
 
-model.summary()
+# model.summary()
 
 image_list = image_list / 255.0
 plt.imshow(mask)
@@ -109,6 +107,14 @@ for frame in trange(image_list.shape[0]):
             if mask[x, y] == 1.0:
                 image_list[frame, x, y, :] = -1
 
-    plt.imshow(model.predict(np.expand_dims(image_list[frame, 0:128, 0:128], axis=0)))
-    plt.show()
-# cv2.imwrite(filename, img)
+    result = model.predict(np.expand_dims(image_list[frame, :, :], axis=0))[0]
+
+    for x in range(mask.shape[0]):
+        for y in range(mask.shape[1]):
+            if mask[x, y] == 1.0:
+                '''
+                print(result.shape)
+                print(image_list.shape)'''
+                image_list[frame, x, y] = result[x, y]
+
+    cv2.imwrite("results/" + str(frame).zfill(4) + "_MSE.JPG", result * 255.0)
