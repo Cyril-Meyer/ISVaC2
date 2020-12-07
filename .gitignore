@@ -131,3 +131,9 @@ dmypy.json
 # PyCharm
 .idea
 
+# Saved models
+model_*
+
+# Datasets
+*images.npy
+
